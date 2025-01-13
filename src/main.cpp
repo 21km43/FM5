@@ -19,6 +19,13 @@
 SoftwareSerial GPSSerial;
 SoftwareSerial ALTSerial;
 
+constexpr char SSID[] = "SSID";
+constexpr char PASSPHRASE[] = "PASSWORD";
+
+const IPAddress localIP(192, 168, 4, 1);  // 自身のIPアドレス
+const IPAddress gateway(192, 168, 4, 0);  // ゲートウェイ
+const IPAddress subnet(255, 255, 255, 0); // サブネットマスク
+
 constexpr int GPS_RX = 6, GPS_TX = 7;
 constexpr int ALT_RX = 8, ALT_TX = 9;
 constexpr int RPM_PIN = 10;
@@ -386,6 +393,7 @@ void SDWriteTask(void *pvParameters)
     // 基準値の設定
     fp.println(
         "Date, Time, Latitude, Longitude, GPSAltitude, GPSCourse, GPSSpeed, "
+        "AccelX, AccelY, AccelZ, GyroX, GyroY, GyroZ, MagX, MagY, MagZ, "
         "Roll_Mad6, Pitch_Mad6, Yaw_Mad6, Roll_Mad9, Pitch_Mad9, Yaw_Mad9, "
         "Roll_Mah6, Pitch_Mah6, Yaw_Mah6, Roll_Mah9, Pitch_Mah9, Yaw_Mah9, "
         "Temperature, Pressure, GroundPressure, BMPAltitude, Altitude, AirSpeed, "
@@ -413,6 +421,24 @@ void SDWriteTask(void *pvParameters)
     fp.print(gps_course);
     PRINT_COMMA;
     fp.print(gps_speed);
+    PRINT_COMMA;
+    fp.print(accelX);
+    PRINT_COMMA;
+    fp.print(accelY);
+    PRINT_COMMA;
+    fp.print(accelZ);
+    PRINT_COMMA;
+    fp.print(gyroX);
+    PRINT_COMMA;
+    fp.print(gyroY);
+    PRINT_COMMA;
+    fp.print(gyroZ);
+    PRINT_COMMA;
+    fp.print(magX);
+    PRINT_COMMA;
+    fp.print(magY);
+    PRINT_COMMA;
+    fp.print(magZ);
     PRINT_COMMA;
     fp.print(roll_mad6);
     PRINT_COMMA;
@@ -481,16 +507,12 @@ void InitSD()
 #pragma endregion
 
 #pragma region SERVER
-// 計測側APのパラメータ
-const IPAddress localIP(192, 168, 4, 1);  // 自身のIPアドレス（操舵用マイコンのIPアドレスとは重複させないこと！）
-const IPAddress gateway(192, 168, 4, 0);  // ゲートウェイ
-const IPAddress subnet(255, 255, 255, 0); // サブネットマスク
 // HTTPサーバーでの処理
 WebServer server(80);
 
 void handleRoot()
 {
-  server.send(HTTP_CODE_OK, "text/plain", "F");
+  server.send(HTTP_CODE_OK, "text/plain", "index");
 }
 void handleNotFound()
 {
@@ -509,7 +531,8 @@ void handleGetGroundPressure()
   server.send(HTTP_CODE_OK, "text/plain", String(ground_pressure));
 }
 void handleSetServoRotation()
-{ // 操舵系統から値を受信する。サーボが動くわけではないので注意
+{
+  // 操舵系統から値を受信する。サーボが動くわけではないので注意
   if (server.hasArg("Rudder"))
   {
     rudder_rotation = server.arg("Rudder").toFloat();
@@ -541,6 +564,15 @@ void handleGetMeasurementData()
   json_array["GPSAltitude"] = gps_altitude;
   json_array["GPSCourse"] = gps_course;
   json_array["GPSSpeed"] = gps_speed;
+  json_array["AccelX"] = accelX;
+  json_array["AccelY"] = accelY;
+  json_array["AccelZ"] = accelZ;
+  json_array["GyroX"] = gyroX;
+  json_array["GyroY"] = gyroY;
+  json_array["GyroZ"] = gyroZ;
+  json_array["MagX"] = magX;
+  json_array["MagY"] = magY;
+  json_array["MagZ"] = magZ;
   json_array["Roll_Mad6"] = roll_mad6;
   json_array["Pitch_Mad6"] = pitch_mad6;
   json_array["Yaw_Mad6"] = yaw_mad6;
@@ -572,9 +604,9 @@ void handleGetMeasurementData()
 
 void InitServer()
 {
-  WiFi.mode(WIFI_AP);
-  WiFi.softAP("WASA2024Measurement", "wasa2024");
-  WiFi.softAPConfig(localIP, gateway, subnet);
+  WiFi.mode(WIFI_STA);
+  WiFi.config(localIP, gateway, subnet);
+  WiFi.begin(SSID, PASSPHRASE);
   server.on("/", handleRoot);
   server.on("/SetGroundPressure", handleSetGroundPressure);
   server.on("/GetGroundPressure", handleGetGroundPressure);
@@ -612,7 +644,10 @@ void loop()
 {
   CoreS3.update();
 
-  server.handleClient();
+  if (WiFi.status() == WL_CONNECTED)
+  {
+    server.handleClient();
+  }
   GetBMP280();
   GetBMI270();
   GetGPS();
@@ -634,26 +669,16 @@ void loop()
     CoreS3.Display.printf("Altitude: %f m\r\n", altitude);
     // CoreS3.Display.printf("BMP Altitude: %f m\r\n", bmp_altitude);
     CoreS3.Display.printf("GPS Time: %d/%d/%d %d:%02d:%02d\r\n", gps_year, gps_month, gps_day, gps_hour, gps_minute, gps_second);
-    CoreS3.Display.printf("Latitude: %.9f\r\n", gps_latitude);
-    CoreS3.Display.printf("Longitude: %.9f\r\n", gps_longitude);
+    CoreS3.Display.printf("Latitude: %.9f, Longitude: %.9f\r\n", gps_latitude, gps_longitude);
     // CoreS3.Display.printf("GPS Altitude: %f m\r\n", gps_altitude);
     // CoreS3.Display.printf("GPS Course: %f deg\r\n", gps_course);
     // CoreS3.Display.printf("GPS Speed: %f m/s\r\n", gps_speed);
-    // CoreS3.Display.printf("Roll_Mad6: %f\r\n", roll_mad6);
-    // CoreS3.Display.printf("Pitch_Mad6: %f\r\n", pitch_mad6);
-    // CoreS3.Display.printf("Yaw_Mad6: %f\r\n", yaw_mad6);
-    // CoreS3.Display.printf("Roll_Mad9: %f\r\n", roll_mad9);
-    // CoreS3.Display.printf("Pitch_Mad9: %f\r\n", pitch_mad9);
-    // CoreS3.Display.printf("Yaw_Mad9: %f\r\n", yaw_mad9);
-    // CoreS3.Display.printf("Roll_Mah6: %f\r\n", roll_mah6);
-    // CoreS3.Display.printf("Pitch_Mah6: %f\r\n", pitch_mah6);
-    // CoreS3.Display.printf("Yaw_Mah6: %f\r\n", yaw_mah6);
-    CoreS3.Display.printf("Roll_Mah9: %f\r\n", roll_mah9);
-    CoreS3.Display.printf("Pitch_Mah9: %f\r\n", pitch_mah9);
-    CoreS3.Display.printf("Yaw_Mah9: %f\r\n", yaw_mah9);
+    // CoreS3.Display.printf("ax: %f, ay: %f, az: %f\r\n", accelX, accelY, accelZ);
+    // CoreS3.Display.printf("gx: %f, gy: %f, gz: %f\r\n", gyroX, gyroY, gyroZ);
+    // CoreS3.Display.printf("mx: %d, my: %d, mz: %d\r\n", magX, magY, magZ);
+    CoreS3.Display.printf("Roll: %f, Pitch: %f, Yaw: %f\r\n", roll_mad9, pitch_mad9, yaw_mad9);
     CoreS3.Display.printf("Air Speed: %f\r\n", air_speed);
     CoreS3.Display.printf("Propeller Rotation Speed: %d\r\n", propeller_rotation);
-    CoreS3.Display.printf("Rudder Rotation: %f\r\n", rudder_rotation);
-    CoreS3.Display.printf("Elevator Rotation: %f\r\n", elevator_rotation);
+    CoreS3.Display.printf("Rudder: %f, Elevator: %f\r\n", rudder_rotation, elevator_rotation);
   }
 }
