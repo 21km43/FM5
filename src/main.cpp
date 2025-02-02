@@ -18,6 +18,7 @@
 #include <SPI.h>
 #include <SD.h>
 #include <TinyGPS++.h>
+#include <mbedtls/md.h>
 
 SoftwareSerial GPSSerial;
 SoftwareSerial ALTSerial;
@@ -25,7 +26,7 @@ SoftwareSerial ALTSerial;
 constexpr char SSID[] = "SSID";
 constexpr char PASSPHRASE[] = "PASSWORD";
 
-const IPAddress localIP(192, 168, 1, 41);  // 自身のIPアドレス
+const IPAddress localIP(192, 168, 1, 41); // 自身のIPアドレス
 const IPAddress gateway(192, 168, 1, 0);  // ゲートウェイ
 const IPAddress subnet(255, 255, 255, 0); // サブネットマスク
 
@@ -603,6 +604,19 @@ void InitSD()
 #pragma endregion
 
 #pragma region SERVER
+void sha256(const char *p_payload, unsigned char *p_hmacResult)
+{
+  mbedtls_md_context_t ctx;
+  mbedtls_md_type_t md_type = MBEDTLS_MD_SHA256;
+
+  mbedtls_md_init(&ctx);
+  mbedtls_md_setup(&ctx, mbedtls_md_info_from_type(md_type), 1);
+  mbedtls_md_starts(&ctx);
+  mbedtls_md_hmac_update(&ctx, (const unsigned char *)p_payload, strlen(p_payload));
+  mbedtls_md_finish(&ctx, p_hmacResult);
+  mbedtls_md_free(&ctx);
+}
+
 // HTTPサーバーでの処理
 WebServer server(80);
 
@@ -696,7 +710,16 @@ void handleGetMeasurementData()
   // JSONフォーマットの文字列に変換する
   serializeJson(json_array, json_string, sizeof(json_string));
 
-  server.send(HTTP_CODE_OK, "text/plain", json_string);
+  unsigned char SHA256[32];
+  sha256(json_string, SHA256);
+  char SHA256_str[64 + 1];
+  for (int i = 0; i < 32; i++)
+  {
+    sprintf((char *)&SHA256_str[i * 2], "%02x", SHA256[i]);
+  }
+  server.sendHeader("SHA256", SHA256_str);
+
+  server.send(HTTP_CODE_OK, "application/json", json_string);
 }
 
 void InitServer()
