@@ -304,9 +304,28 @@ Return: 05 06 02 01 00 01 19 F6
 Description: Slave address is 0x05, change the baud rate to 0x01 (2400bps)
 */
 
-unsigned char cmd[] = {0x01, 0x03, 0x01, 0x01, 0x00, 0x01, 0x85, 0xf6}; // 温度補正あり
+unsigned char cmd[] = {0x01, 0x03, 0x01, 0x00, 0x00, 0x01, 0x85, 0xf6}; // 温度補正あり
 // unsigned char cmd[] = {0x01, 0x03, 0x01, 0x01, 0x00, 0x01, 0xd4, 0x36}; // 温度補正無し
 float altitude = 2.0; // 高度(m)
+
+static uint16_t crc16(const uint8_t *_data, const uint16_t _len)
+{
+  uint16_t crc = 0xffff;
+  for (uint16_t i = 0; i < _len; i++)
+  {
+    crc = (crc ^ _data[i]) & 0xffff;
+    for (int j = 0; j < 8; j++)
+    {
+      uint8_t lsb = crc & 1;
+      crc >>= 1;
+      if (lsb == 1)
+      {
+        crc = (crc ^ 0xa001) & 0xffff;
+      }
+    }
+  }
+  return crc;
+}
 
 void altitude_task(void *pvParameters)
 {
@@ -315,20 +334,27 @@ void altitude_task(void *pvParameters)
   {
     ALTSerial.write(cmd, sizeof(cmd));
 
+    for (int i = 0; i < 20; i++) {
+      if (ALTSerial.available() < 7)
+        break;
     delay(50);
+    }
 
     if (ALTSerial.available() >= 7)
     {
       ALTSerial.readBytes(buff, 7);
 
+      if (crc16(buff, 5) == *((uint16_t *)(buff + 5)))
+      {
       uint16_t dist = (buff[3] << 8) | buff[4];
       altitude = dist / 1000.0f;
     }
+    }
+
+    delay(50);
 
     while (ALTSerial.available() > 0)
       ALTSerial.read();
-
-    delay(50);
   }
 }
 
