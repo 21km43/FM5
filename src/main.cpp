@@ -29,6 +29,7 @@ const IPAddress localIP(192, 168, 1, 41);  // 自身のIPアドレス
 const IPAddress gateway(192, 168, 1, 0);  // ゲートウェイ
 const IPAddress subnet(255, 255, 255, 0); // サブネットマスク
 
+constexpr char AID[] = "7777";
 constexpr int GPS_RX = 7, GPS_TX = 6;
 constexpr int ALT_RX = 8, ALT_TX = 9;
 constexpr int RPM_PIN = 10;
@@ -645,51 +646,52 @@ void handleSetServoRotation()
 void handleGetMeasurementData()
 {
   // JSONを作成する
-  JsonDocument json_array;
+  JsonDocument json_array, json_data;
   char json_string[4096];
+
   // JSONに変換したいデータを連想配列で指定する
-  json_array["Year"] = gps_year;
-  json_array["Month"] = gps_month;
-  json_array["Day"] = gps_day;
-  json_array["Hour"] = gps_hour;
-  json_array["Minute"] = gps_minute;
-  json_array["Second"] = gps_second;
-  json_array["Latitude"] = gps_latitude;
-  json_array["Longitude"] = gps_longitude;
-  json_array["GPSAltitude"] = gps_altitude;
-  json_array["GPSCourse"] = gps_course;
-  json_array["GPSSpeed"] = gps_speed;
-  json_array["AccelX"] = accelX;
-  json_array["AccelY"] = accelY;
-  json_array["AccelZ"] = accelZ;
-  json_array["GyroX"] = gyroX;
-  json_array["GyroY"] = gyroY;
-  json_array["GyroZ"] = gyroZ;
-  json_array["MagX"] = magX;
-  json_array["MagY"] = magY;
-  json_array["MagZ"] = magZ;
-  json_array["Roll_Mad6"] = roll_mad6;
-  json_array["Pitch_Mad6"] = pitch_mad6;
-  json_array["Yaw_Mad6"] = yaw_mad6;
-  json_array["Roll_Mad9"] = roll_mad9;
-  json_array["Pitch_Mad9"] = pitch_mad9;
-  json_array["Yaw_Mad9"] = yaw_mad9;
-  json_array["Roll_Mah6"] = roll_mah6;
-  json_array["Pitch_Mah6"] = pitch_mah6;
-  json_array["Yaw_Mah6"] = yaw_mah6;
-  json_array["Roll_Mah9"] = roll_mah9;
-  json_array["Pitch_Mah9"] = pitch_mah9;
-  json_array["Yaw_Mah9"] = yaw_mah9;
-  json_array["Temperature"] = temperature;
-  json_array["Pressure"] = pressure;
-  json_array["GroundPressure"] = ground_pressure;
-  json_array["BMPAltitude"] = bmp_altitude;
-  json_array["Altitude"] = altitude;
-  json_array["AirSpeed"] = air_speed;
-  json_array["PropellerRotationSpeed"] = propeller_rotation;
-  json_array["Rudder"] = rudder_rotation;
-  json_array["Elevator"] = elevator_rotation;
-  json_array["RunningTime"] = millis() / 1000.0;
+  json_data["Latitude"] = gps_latitude;
+  json_data["Longitude"] = gps_longitude;
+  json_data["GPSAltitude"] = gps_altitude;
+  json_data["GPSCourse"] = gps_course;
+  json_data["GPSSpeed"] = gps_speed;
+  json_data["AccelX"] = accelX;
+  json_data["AccelY"] = accelY;
+  json_data["AccelZ"] = accelZ;
+  json_data["GyroX"] = gyroX;
+  json_data["GyroY"] = gyroY;
+  json_data["GyroZ"] = gyroZ;
+  json_data["MagX"] = magX;
+  json_data["MagY"] = magY;
+  json_data["MagZ"] = magZ;
+  json_data["Roll_Mad6"] = roll_mad6;
+  json_data["Pitch_Mad6"] = pitch_mad6;
+  json_data["Yaw_Mad6"] = yaw_mad6;
+  json_data["Roll_Mad9"] = roll_mad9;
+  json_data["Pitch_Mad9"] = pitch_mad9;
+  json_data["Yaw_Mad9"] = yaw_mad9;
+  json_data["Roll_Mah6"] = roll_mah6;
+  json_data["Pitch_Mah6"] = pitch_mah6;
+  json_data["Yaw_Mah6"] = yaw_mah6;
+  json_data["Roll_Mah9"] = roll_mah9;
+  json_data["Pitch_Mah9"] = pitch_mah9;
+  json_data["Yaw_Mah9"] = yaw_mah9;
+  json_data["Temperature"] = temperature;
+  json_data["Pressure"] = pressure;
+  json_data["GroundPressure"] = ground_pressure;
+  json_data["BMPAltitude"] = bmp_altitude;
+  json_data["Altitude"] = altitude;
+  json_data["AirSpeed"] = air_speed;
+  json_data["PropellerRotationSpeed"] = propeller_rotation;
+  json_data["Rudder"] = rudder_rotation;
+  json_data["Elevator"] = elevator_rotation;
+  json_data["RunningTime"] = millis() / 1000.0;
+
+  char time_str[32];
+  sprintf(time_str, "%d-%d-%d %d:%02d:%02d", gps_year, gps_month, gps_day, gps_hour, gps_minute, gps_second);
+  json_array["AID"] = AID;
+  json_array["Time"] = time_str;
+  json_array["data"] = json_data;
 
   // JSONフォーマットの文字列に変換する
   serializeJson(json_array, json_string, sizeof(json_string));
@@ -763,7 +765,7 @@ void loop()
     // CoreS3.Display.printf("Pressure: %f Pa\r\n", pressure);
     CoreS3.Display.printf("Altitude: %f m\r\n", altitude);
     // CoreS3.Display.printf("BMP Altitude: %f m\r\n", bmp_altitude);
-    CoreS3.Display.printf("GPS Time: %d/%d/%d %d:%02d:%02d\r\n", gps_year, gps_month, gps_day, gps_hour, gps_minute, gps_second);
+    CoreS3.Display.printf("GPS Time: %d-%d-%d %d:%02d:%02d\r\n", gps_year, gps_month, gps_day, gps_hour, gps_minute, gps_second);
     CoreS3.Display.printf("Latitude: %.9f, Longitude: %.9f\r\n", gps_latitude, gps_longitude);
     // CoreS3.Display.printf("GPS Altitude: %f m\r\n", gps_altitude);
     // CoreS3.Display.printf("GPS Course: %f deg\r\n", gps_course);
