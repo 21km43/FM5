@@ -29,7 +29,7 @@ const IPAddress localIP(192, 168, 1, 41);  // 自身のIPアドレス
 const IPAddress gateway(192, 168, 1, 0);  // ゲートウェイ
 const IPAddress subnet(255, 255, 255, 0); // サブネットマスク
 
-constexpr int GPS_RX = 6, GPS_TX = 7;
+constexpr int GPS_RX = 7, GPS_TX = 6;
 constexpr int ALT_RX = 8, ALT_TX = 9;
 constexpr int RPM_PIN = 10;
 constexpr int TACHO_PIN[2] = {1, 2};
