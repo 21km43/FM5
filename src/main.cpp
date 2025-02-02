@@ -459,6 +459,9 @@ void SDWriteTask(void *pvParameters)
 
   if (!SD.begin(SD_SPI_CS_PIN, SPI, 25000000))
   {
+    delay(5000);
+    InitSD();
+    vTaskDelete(NULL);
     return;
   }
 
