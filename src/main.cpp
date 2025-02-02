@@ -231,7 +231,7 @@ double gps_speed = 0;     // 対地速度(m/s) 精度は高くないので参考
 
 void InitGPS()
 {
-  GPSSerial.begin(9600, SWSERIAL_8N1, GPS_RX, GPS_TX);
+  GPSSerial.begin(38400, SWSERIAL_8N1, GPS_RX, GPS_TX);
 }
 void GetGPS()
 {
