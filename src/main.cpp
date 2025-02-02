@@ -238,18 +238,34 @@ void GetGPS()
   while (GPSSerial.available() > 0)
   {
     gps.encode(GPSSerial.read());
+
+    if (gps.date.isUpdated())
+    {
+      gps_year = gps.date.year();
+      gps_month = gps.date.month();
+      gps_day = gps.date.day();
+    }
+    if (gps.time.isUpdated())
+    {
+      gps_hour = (gps.time.hour() + 9) % 24; // 時差を考慮すること
+      gps_minute = gps.time.minute();
+      gps_second = gps.time.second();
+    }
     if (gps.location.isUpdated())
     {
       gps_latitude = gps.location.lat();
       gps_longitude = gps.location.lng();
-      gps_year = gps.date.year();
-      gps_month = gps.date.month();
-      gps_day = gps.date.day();
-      gps_hour = (gps.time.hour() + 9) % 24; // 時差を考慮すること
-      gps_minute = gps.time.minute();
-      gps_second = gps.time.second();
-      gps_altitude = gps.altitude.meters(); // 高度 メートル単位
-      gps_course = gps.course.deg();        // 進行方向(deg)
+    }
+    if (gps.altitude.isUpdated())
+    {
+      gps_altitude = gps.altitude.meters();
+    }
+    if (gps.course.isUpdated())
+    {
+      gps_course = gps.course.deg();
+    }
+    if (gps.speed.isUpdated())
+    {
       gps_speed = gps.speed.mps();
     }
   }
