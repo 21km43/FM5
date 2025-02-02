@@ -47,7 +47,7 @@ void ota_handle(void *parameter)
   for (;;)
   {
     ArduinoOTA.handle();
-    delay(3500);
+    delay(1000);
   }
 }
 
@@ -167,10 +167,6 @@ void ahrs_task(void *pvParameters)
 {
   while (1)
   {
-    bmi270.readAcceleration(accelX, accelY, accelZ);
-    bmi270.readGyroscope(gyroX, gyroY, gyroZ);
-    bmi270.readMagneticField(magX, magY, magZ);
-
     ahrs_madgwick_6dof.updateIMU(gyroX, gyroY, gyroZ, accelX, accelY, accelZ);
     ahrs_madgwick_9dof.update(gyroX, gyroY, gyroZ, accelX, accelY, accelZ, magX, magY, magZ);
     ahrs_mahony_6dof.updateIMU(gyroX, gyroY, gyroZ, accelX, accelY, accelZ);
@@ -212,6 +208,9 @@ void InitBMI270()
 }
 void GetBMI270()
 {
+  bmi270.readAcceleration(accelX, accelY, accelZ);
+  bmi270.readGyroscope(gyroX, gyroY, gyroZ);
+  bmi270.readMagneticField(magX, magY, magZ);
 }
 #pragma endregion
 
@@ -734,7 +733,7 @@ void loop()
 
   // Display
   static uint32_t last_print = 0;
-  if (millis() - last_print > 200)
+  if (millis() - last_print > 500)
   {
     last_print = millis();
 
