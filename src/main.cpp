@@ -135,12 +135,12 @@ void InitBMP280()
 
   delay(100);
 
-  ground_pressure = bmp.readPressure();
+  ground_pressure = bmp.readPressure() / 100.0f;
 }
 void GetBMP280()
 {
   temperature = bmp.readTemperature();
-  pressure = bmp.readPressure();
+  pressure = bmp.readPressure() / 100.0f;
   bmp_altitude = bmp.readAltitude(ground_pressure);
 }
 #pragma endregion
