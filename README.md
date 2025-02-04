@@ -11,3 +11,17 @@
 
 * [PlatformIO](https://platformio.org)
 * [VSCode](https://code.visualstudio.com)
+
+## CoreS3 SE Pinout
+
+* Port A ... G1, G2 (Air Speed)
+* Port B ... G8, G9 (Altitude)
+* Port C ... G18, G17 (LoRa)
+* Port D ... G14, G10 (Propeller Rotation Speed, G14 is not used)
+* Port E ... G13, G5 (Control board)
+
+GNSS
+
+* PPS ... G0 (Not used)
+* TX ... G6
+* RX ... G7
