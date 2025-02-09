@@ -32,7 +32,7 @@ const IPAddress subnet(255, 255, 255, 0); // サブネットマスク
 
 constexpr char AID[] = "7777";
 constexpr int GPS_RX = 7, GPS_TX = 6;
-constexpr int ALT_RX = 8, ALT_TX = 9;
+constexpr int ALT_RX = 8, ALT_TX = 9, ALT_REDE_PIN = 14;
 constexpr int RPM_PIN = 10;
 constexpr int TACHO_PIN[2] = {1, 2};
 constexpr int SD_SPI_SCK_PIN = 36;
@@ -332,29 +332,25 @@ void altitude_task(void *pvParameters)
   uint8_t buff[16];
   while (1)
   {
-    ALTSerial.write(cmd, sizeof(cmd));
-
-    for (int i = 0; i < 20; i++) {
-      if (ALTSerial.available() < 7)
-        break;
-    delay(50);
-    }
-
-    if (ALTSerial.available() >= 7)
+    digitalWrite(ALT_REDE_PIN, HIGH);
+    ALTSerial.write(cmd, 8);
+    digitalWrite(ALT_REDE_PIN, LOW);
+    int dataLen = ALTSerial.available();
+    if (dataLen > 0)
     {
-      ALTSerial.readBytes(buff, 7);
-
+      uint8_t buff[16];
+      int recvSize = ALTSerial.readBytes(buff, dataLen);
       if (crc16(buff, 5) == *((uint16_t *)(buff + 5)))
       {
-      uint16_t dist = (buff[3] << 8) | buff[4];
+        uint16_t dist = buff[3] << 8 | buff[4];
       altitude = dist / 1000.0f;
     }
+      else
+      {
+        Serial.println("CRC Error (Altitude Sensor)");
+      }
     }
-
-    delay(50);
-
-    while (ALTSerial.available() > 0)
-      ALTSerial.read();
+    delay(200);
   }
 }
 
@@ -364,8 +360,9 @@ void GetAltitude()
 
 void InitAltitude()
 {
+  pinMode(ALT_REDE_PIN, OUTPUT);
   ALTSerial.begin(9600, SWSERIAL_8N1, ALT_RX, ALT_TX);
-  xTaskCreate(altitude_task, "altitude_task", 2048, NULL, 1, NULL);
+  xTaskCreate(altitude_task, "altitude_task", 4096, NULL, 1, NULL);
 }
 #pragma endregion
 
@@ -778,6 +775,8 @@ void setup()
   InitTacho();
   delay(100);
   InitRPM();
+  delay(100);
+  InitAltitude();
   delay(100);
 
   InitSD();
