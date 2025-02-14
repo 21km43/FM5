@@ -8,6 +8,8 @@
 #include <M5_IMU_PRO.h>
 #include <MadgwickAHRS.h>
 #include <MahonyAHRS.h>
+#include <M5_LoRa_E220_JP.h>
+#include <esp32/rom/crc.h>
 #include <WiFi.h>
 #include <ESPmDNS.h>
 #include <WiFiUdp.h>
@@ -21,11 +23,11 @@
 #include <mbedtls/md.h>
 
 // TODO
-// LoRa
 // UART (to control board)
 
 SoftwareSerial GPSSerial;
 SoftwareSerial ALTSerial;
+#define LORA_SERIAL Serial1
 
 constexpr char SSID[] = "SSID";
 constexpr char PASSPHRASE[] = "PASSWORD";
@@ -37,6 +39,7 @@ const IPAddress subnet(255, 255, 255, 0); // サブネットマスク
 constexpr char AID[] = "7777";
 constexpr int GPS_RX = 7, GPS_TX = 6;
 constexpr int ALT_RX = 8, ALT_TX = 9, ALT_REDE_PIN = 14;
+constexpr int LORA_RX = 18, LORA_TX = 17;
 constexpr int RPM_PIN = 10;
 constexpr int TACHO_PIN[2] = {1, 2};
 constexpr int SD_SPI_SCK_PIN = 36;
@@ -634,6 +637,145 @@ void InitSD()
 #pragma endregion
 
 #pragma region SERVER
+
+#pragma region LORA
+// LoRa関連
+LoRa_E220_JP lora;
+struct LoRaConfigItem_t lora_config;
+
+// 気合でパケットを200バイト以内に収めること
+struct LoRaData
+{
+  double Latitude;
+  double Longitude;
+  double GPSAltitude;
+  double GPSCourse;
+  double GPSSpeed;
+  float AccelX;
+  float AccelY;
+  float AccelZ;
+  float GyroX;
+  float GyroY;
+  float GyroZ;
+  int16_t MagX;
+  int16_t MagY;
+  int16_t MagZ;
+  float Roll_Mad6;
+  float Pitch_Mad6;
+  float Yaw_Mad6;
+  float Roll_Mad9;
+  float Pitch_Mad9;
+  float Yaw_Mad9;
+  float Roll_Mah6;
+  float Pitch_Mah6;
+  float Yaw_Mah6;
+  float Roll_Mah9;
+  float Pitch_Mah9;
+  float Yaw_Mah9;
+  float Temperature;
+  float Pressure;
+  float GroundPressure;
+  float BMPAltitude;
+  float Altitude;
+  float AirSpeed;
+  float PropellerRotationSpeed;
+  float Rudder;
+  float Elevator;
+  int Trim;
+  float RunningTime;
+};
+
+// 送信データに巡回符号検査を付加（SHA256だとデータサイズが大きく不向きなため）
+struct LoRaPacket
+{
+  LoRaData data;
+  uint32_t CRC32;
+};
+
+void LoRaSendTask(void *pvParameters)
+{
+  while (1)
+  {
+    LoRaPacket lora_packet;
+
+    lora_packet.data.Latitude = gps_latitude;
+    lora_packet.data.Longitude = gps_longitude;
+    lora_packet.data.GPSAltitude = gps_altitude;
+    lora_packet.data.GPSCourse = gps_course;
+    lora_packet.data.GPSSpeed = gps_speed;
+    lora_packet.data.AccelX = accelX;
+    lora_packet.data.AccelY = accelY;
+    lora_packet.data.AccelZ = accelZ;
+    lora_packet.data.GyroX = gyroX;
+    lora_packet.data.GyroY = gyroY;
+    lora_packet.data.GyroZ = gyroZ;
+    lora_packet.data.MagX = magX;
+    lora_packet.data.MagY = magY;
+    lora_packet.data.MagZ = magZ;
+    lora_packet.data.Roll_Mad6 = roll_mad6;
+    lora_packet.data.Pitch_Mad6 = pitch_mad6;
+    lora_packet.data.Yaw_Mad6 = yaw_mad6;
+    lora_packet.data.Roll_Mad9 = roll_mad9;
+    lora_packet.data.Pitch_Mad9 = pitch_mad9;
+    lora_packet.data.Yaw_Mad9 = yaw_mad9;
+    lora_packet.data.Roll_Mah6 = roll_mah6;
+    lora_packet.data.Pitch_Mah6 = pitch_mah6;
+    lora_packet.data.Yaw_Mah6 = yaw_mah6;
+    lora_packet.data.Roll_Mah9 = roll_mah9;
+    lora_packet.data.Pitch_Mah9 = pitch_mah9;
+    lora_packet.data.Yaw_Mah9 = yaw_mah9;
+    lora_packet.data.Temperature = temperature;
+    lora_packet.data.Pressure = pressure;
+    lora_packet.data.GroundPressure = ground_pressure;
+    lora_packet.data.BMPAltitude = bmp_altitude;
+    lora_packet.data.Altitude = altitude;
+    lora_packet.data.AirSpeed = air_speed;
+    lora_packet.data.PropellerRotationSpeed = propeller_rotation;
+    lora_packet.data.Rudder = rudder_rotation;
+    lora_packet.data.Elevator = elevator_rotation;
+    lora_packet.data.Trim = trim;
+    lora_packet.data.RunningTime = millis() / 1000.0;
+
+    lora_packet.CRC32 = (~crc32_le((uint32_t)~(0xffffffff), (const uint8_t*)&(lora_packet.data), sizeof(lora_packet.data)))^0xffffffff;
+    
+    lora.SendFrame(lora_config, (uint8_t *)&lora_packet, sizeof(lora_packet));
+
+    delay(100);
+  }
+}
+
+void InitLoRa()
+{
+  lora.Init(&LORA_SERIAL, 9600, SERIAL_8N1, LORA_RX, LORA_TX);
+
+  lora.SetDefaultConfigValue(lora_config);
+
+  lora_config.own_address = 0x0000;
+  lora_config.baud_rate = BAUD_9600;
+  lora_config.air_data_rate = BW500K_SF5;
+  lora_config.subpacket_size = SUBPACKET_200_BYTE;
+  lora_config.rssi_ambient_noise_flag = RSSI_AMBIENT_NOISE_ENABLE;
+  lora_config.transmitting_power = TX_POWER_13dBm;
+  lora_config.own_channel = 0x0A;
+  lora_config.rssi_byte_flag = RSSI_BYTE_ENABLE;
+  lora_config.transmission_method_type = UART_P2P_MODE;
+  lora_config.lbt_flag = LBT_DISABLE;
+  lora_config.wor_cycle = WOR_2000MS;
+  lora_config.encryption_key = 0x1234;
+  lora_config.target_address = 0x0000;
+  lora_config.target_channel = 0x0A;
+
+  if (lora.InitLoRaSetting(lora_config) != 0)
+  {
+    Serial.println("LoRa configure failed!");
+    Serial.println("Please pull the M0, M1 to HIGH if you want to configure the LoRa module.");
+  }
+  Serial.println("LoRa OK!");
+
+  xTaskCreatePinnedToCore(LoRaSendTask, "LoRaSendTask", 8192, NULL, 1, NULL, 0);
+}
+#pragma endregion
+
 void sha256(const char *p_payload, unsigned char *p_hmacResult)
 {
   mbedtls_md_context_t ctx;
@@ -796,6 +938,8 @@ void setup()
   InitSD();
   delay(100);
   InitServer();
+  delay(100);
+  InitLoRa();
   delay(100);
 }
 
