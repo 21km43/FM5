@@ -42,6 +42,7 @@ constexpr int SD_SPI_CS_PIN = 4;
 
 float rudder_rotation = 0;
 float elevator_rotation = 0;
+int trim = 0;
 
 #pragma region OTA
 void ota_handle(void *parameter)
@@ -517,7 +518,7 @@ void SDWriteTask(void *pvParameters)
         "Roll_Mad6, Pitch_Mad6, Yaw_Mad6, Roll_Mad9, Pitch_Mad9, Yaw_Mad9, "
         "Roll_Mah6, Pitch_Mah6, Yaw_Mah6, Roll_Mah9, Pitch_Mah9, Yaw_Mah9, "
         "Temperature, Pressure, GroundPressure, BMPAltitude, Altitude, AirSpeed, "
-        "PropellerRotationSpeed, Rudder, Elevator, RunningTime");
+        "PropellerRotationSpeed, Rudder, Elevator, Trim, RunningTime");
   }
   else
   {
@@ -602,6 +603,8 @@ void SDWriteTask(void *pvParameters)
     PRINT_COMMA;
     fp.printf("%.3f", elevator_rotation);
     PRINT_COMMA;
+    fp.print(trim);
+    PRINT_COMMA;
     fp.print(millis() / 1000.0);
     PRINT_COMMA;
     fp.println();
@@ -674,10 +677,16 @@ void handleSetServoRotation()
   {
     elevator_rotation = server.arg("Elevator").toFloat();
   }
+  if (server.hasArg("Trim"))
+  {
+    trim = server.arg("Trim").toFloat();
+  }
   String str;
   str += rudder_rotation;
   str += ", ";
   str += elevator_rotation;
+  str += ", ";
+  str += trim;
   server.send(HTTP_CODE_OK, "text/plain", str);
 }
 void handleGetMeasurementData()
@@ -722,6 +731,7 @@ void handleGetMeasurementData()
   json_data["PropellerRotationSpeed"] = propeller_rotation;
   json_data["Rudder"] = rudder_rotation;
   json_data["Elevator"] = elevator_rotation;
+  json_data["Trim"] = trim;
   json_data["RunningTime"] = millis() / 1000.0;
 
   char time_str[32];
@@ -824,6 +834,6 @@ void loop()
     CoreS3.Display.printf("Roll: %f, Pitch: %f, Yaw: %f\r\n", roll_mad9, pitch_mad9, yaw_mad9);
     CoreS3.Display.printf("Air Speed: %f\r\n", air_speed);
     CoreS3.Display.printf("Propeller Rotation Speed: %d\r\n", propeller_rotation);
-    CoreS3.Display.printf("Rudder: %f, Elevator: %f\r\n", rudder_rotation, elevator_rotation);
+    CoreS3.Display.printf("Rudder: %f, Elevator: %f, Trim: %d\r\n", rudder_rotation, elevator_rotation, trim);
   }
 }
