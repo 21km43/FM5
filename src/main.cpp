@@ -643,7 +643,6 @@ void InitSD()
 LoRa_E220_JP lora;
 struct LoRaConfigItem_t lora_config;
 
-// 気合でパケットを200バイト以内に収めること
 struct LoRaData
 {
   double Latitude;
@@ -691,6 +690,9 @@ struct LoRaPacket
   LoRaData data;
   uint32_t CRC32;
 };
+
+// パケットサイズは200バイト以下にすること
+static_assert(sizeof(LoRaPacket) <= 200, "LoRaPacket size is too large! Keep packet size under 200 Bytes.");
 
 void LoRaSendTask(void *pvParameters)
 {
