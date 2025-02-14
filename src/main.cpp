@@ -20,6 +20,10 @@
 #include <TinyGPS++.h>
 #include <mbedtls/md.h>
 
+// TODO
+// LoRa
+// UART (to control board)
+
 SoftwareSerial GPSSerial;
 SoftwareSerial ALTSerial;
 
