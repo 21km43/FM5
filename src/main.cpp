@@ -22,11 +22,9 @@
 #include <TinyGPS++.h>
 #include <mbedtls/md.h>
 
-// TODO
-// UART (to control board)
-
 SoftwareSerial GPSSerial;
 SoftwareSerial ALTSerial;
+SoftwareSerial CtrlSerial;
 #define LORA_SERIAL Serial1
 
 constexpr char SSID[] = "SSID";
@@ -40,6 +38,7 @@ constexpr char AID[] = "7777";
 constexpr int GPS_RX = 7, GPS_TX = 6;
 constexpr int ALT_RX = 8, ALT_TX = 9, ALT_REDE_PIN = 14;
 constexpr int LORA_RX = 18, LORA_TX = 17;
+constexpr int CTRL_RX = 13, CTRL_TX = 5;
 constexpr int RPM_PIN = 10;
 constexpr int TACHO_PIN[2] = {1, 2};
 constexpr int SD_SPI_SCK_PIN = 36;
@@ -316,6 +315,7 @@ unsigned char cmd[] = {0x01, 0x03, 0x01, 0x00, 0x00, 0x01, 0x85, 0xf6}; // 温�
 // unsigned char cmd[] = {0x01, 0x03, 0x01, 0x01, 0x00, 0x01, 0xd4, 0x36}; // 温度補正無し
 float altitude = 2.0; // 高度(m)
 
+// 削除予定。今後はハードウェアのCRC演算を利用する
 static uint16_t crc16(const uint8_t *_data, const uint16_t _len)
 {
   uint16_t crc = 0xffff;
@@ -348,7 +348,9 @@ void altitude_task(void *pvParameters)
     {
       uint8_t buff[16];
       int recvSize = ALTSerial.readBytes(buff, dataLen);
-      if (crc16(buff, 5) == *((uint16_t *)(buff + 5)))
+      uint16_t crc = crc16(buff, 5);
+      // uint16_t crc16 = (~crc16_le((uint16_t)~(0xffff), buff, 5))^0xffff;
+      if (crc == *((uint16_t *)(buff + 5)))
       {
         uint16_t dist = buff[3] << 8 | buff[4];
       altitude = dist / 1000.0f;
@@ -610,7 +612,7 @@ void SDWriteTask(void *pvParameters)
     PRINT_COMMA;
     fp.printf("%.3f", elevator_rotation);
     PRINT_COMMA;
-    fp.print(trim);
+    fp.printf("%.3f", trim);
     PRINT_COMMA;
     fp.print(millis() / 1000.0);
     PRINT_COMMA;
@@ -680,7 +682,7 @@ struct LoRaData
   float PropellerRotationSpeed;
   float Rudder;
   float Elevator;
-  int Trim;
+  float Trim;
   float RunningTime;
 };
 
@@ -916,6 +918,43 @@ void InitServer()
 }
 #pragma endregion
 
+#pragma region UART_TO_CONTROL
+// 操舵系統からのUART通信
+struct ControlData
+{
+  float Rudder;
+  float Elevator;
+  float Trim;
+};
+
+struct ControlPacket
+{
+  ControlData data;
+  uint16_t CRC16;
+};
+
+void InitUARTToControl()
+{
+  CtrlSerial.begin(9600, SWSERIAL_8N1, CTRL_RX, CTRL_TX);
+}
+
+void GetControlData()
+{
+  while (CtrlSerial.available() > sizeof(ControlPacket))
+  {
+    ControlPacket ctrl_packet;
+    CtrlSerial.readBytes((uint8_t *)&ctrl_packet, sizeof(ctrl_packet));
+    uint16_t crc16 = (~crc16_le((uint16_t)~(0xffff), (uint8_t *)&ctrl_packet.data, sizeof(ctrl_packet.data)))^0xffff;
+    if (crc16 == ctrl_packet.CRC16)
+    {
+      rudder_rotation = ctrl_packet.data.Rudder;
+      elevator_rotation = ctrl_packet.data.Elevator;
+      trim = ctrl_packet.data.Trim;
+    }
+  }
+}
+#pragma endregion
+
 void setup()
 {
   Serial.begin(115200);
@@ -943,6 +982,8 @@ void setup()
   delay(100);
   InitLoRa();
   delay(100);
+  InitUARTToControl();
+  delay(100);
 }
 
 void loop()
@@ -959,6 +1000,7 @@ void loop()
   GetAltitude();
   GetTacho();
   GetRPM();
+  GetControlData();
 
   // Display
   static uint32_t last_print = 0;
@@ -984,6 +1026,6 @@ void loop()
     CoreS3.Display.printf("Roll: %f, Pitch: %f, Yaw: %f\r\n", roll_mad9, pitch_mad9, yaw_mad9);
     CoreS3.Display.printf("Air Speed: %f\r\n", air_speed);
     CoreS3.Display.printf("Propeller Rotation Speed: %d\r\n", propeller_rotation);
-    CoreS3.Display.printf("Rudder: %f, Elevator: %f, Trim: %d\r\n", rudder_rotation, elevator_rotation, trim);
+    CoreS3.Display.printf("Rudder: %f, Elevator: %f, Trim: %f\r\n", rudder_rotation, elevator_rotation, trim);
   }
 }
