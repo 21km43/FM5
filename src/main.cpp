@@ -943,7 +943,7 @@ void GetControlData()
   while (CtrlSerial.available() > sizeof(ControlPacket))
   {
     ControlPacket ctrl_packet;
-    CtrlSerial.readBytes((uint8_t *)&ctrl_packet, sizeof(ctrl_packet));
+    CtrlSerial.readBytes((uint8_t *)&ctrl_packet, sizeof(ControlPacket));
     uint16_t crc16 = (~crc16_le((uint16_t)~(0xffff), (uint8_t *)&ctrl_packet.data, sizeof(ctrl_packet.data)))^0xffff;
     if (crc16 == ctrl_packet.CRC16)
     {
